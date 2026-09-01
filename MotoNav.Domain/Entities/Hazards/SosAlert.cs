@@ -3,7 +3,7 @@ using MotoNav.Domain.Enums;
 using NetTopologySuite.Geometries;
 
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Hazards
 {
     public class SosAlert: BaseEntity
     {

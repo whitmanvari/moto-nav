@@ -1,7 +1,7 @@
 ﻿using MotoNav.Domain.Common;
 using NetTopologySuite.Geometries;
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Navigation
 {
     public class TripLog: BaseEntity
     {

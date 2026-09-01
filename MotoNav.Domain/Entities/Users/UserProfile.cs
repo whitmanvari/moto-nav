@@ -1,6 +1,7 @@
 ﻿using MotoNav.Domain.Common;
+using MotoNav.Domain.Entities.Navigation;
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Users
 {
     public class UserProfile: BaseEntity
     {

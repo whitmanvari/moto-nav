@@ -1,7 +1,7 @@
 ﻿using MotoNav.Domain.Common;
 using MotoNav.Domain.Enums;
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Users
 {
     public class Motorcycle: BaseEntity
     {

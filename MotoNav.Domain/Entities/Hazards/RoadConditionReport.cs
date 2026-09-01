@@ -1,9 +1,8 @@
-﻿
-using MotoNav.Domain.Common;
+﻿using MotoNav.Domain.Common;
 using MotoNav.Domain.Enums;
 using NetTopologySuite.Geometries;
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Hazards
 {
     public class RoadConditionReport: BaseEntity
     {

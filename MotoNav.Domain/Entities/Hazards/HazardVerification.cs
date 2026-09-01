@@ -1,6 +1,6 @@
 ﻿using MotoNav.Domain.Common;
 
-namespace MotoNav.Domain.Entities
+namespace MotoNav.Domain.Entities.Hazards
 {
     public class HazardVerification: BaseEntity
     {
