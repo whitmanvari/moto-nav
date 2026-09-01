@@ -1,0 +1,6 @@
+@moto_nav_back_HostAddress = http://localhost:5249
+
+GET {{moto_nav_back_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
