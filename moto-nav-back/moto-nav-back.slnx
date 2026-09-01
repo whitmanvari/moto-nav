@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="../MotoNav.Application/MotoNav.Application.csproj" />
+  <Project Path="../MotoNav.Domain/MotoNav.Domain.csproj" />
+  <Project Path="../MotoNav.Infrastructure/MotoNav.Infrastructure.csproj" />
+  <Project Path="../MotoNav.Persistence/MotoNav.Persistence.csproj" />
+  <Project Path="moto-nav.api.csproj" />
+</Solution>
