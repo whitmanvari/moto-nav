@@ -4,7 +4,7 @@ using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Rides;
 using NetTopologySuite.Geometries;
 
-namespace moto_nav.api.Controllers;
+namespace moto_nav_back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

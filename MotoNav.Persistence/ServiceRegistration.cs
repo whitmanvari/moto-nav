@@ -25,6 +25,9 @@ public static class ServiceRegistration
         services.AddScoped<ICustomRouteRepository, CustomRouteRepository>();
         services.AddScoped<ITripLogRepository, TripLogRepository>();
         services.AddScoped<IGroupRideRepository, GroupRideRepository>();
+        services.AddScoped<IMaintenanceRepository, MaintenanceRepository>();
+        services.AddScoped<IParkingZoneRepository, ParkingZoneRepository>();
+        services.AddScoped<IUserProfileRepository, UserProfileRepository>();
         return services;
     }
 }
