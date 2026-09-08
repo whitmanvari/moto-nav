@@ -1,10 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace MotoNav.Domain.Enums
+﻿namespace MotoNav.Domain.Enums
 {
-    internal class UserRole
+    public enum UserRole
     {
+        User = 1,
+        Moderator = 2,
+        Admin = 3
     }
 }

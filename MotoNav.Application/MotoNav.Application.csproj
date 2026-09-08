@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MotoNav.Domain\MotoNav.Domain.csproj" />
+  </ItemGroup>
+
 </Project>
