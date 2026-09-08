@@ -22,6 +22,9 @@ public static class ServiceRegistration
         services.AddScoped<IHazardReportRepository, HazardReportRepository>();
         services.AddScoped<IBikerSpotRepository, BikerSpotRepository>();
         services.AddScoped<ISosAlertRepository, SosAlertRepository>();
+        services.AddScoped<ICustomRouteRepository, CustomRouteRepository>();
+        services.AddScoped<ITripLogRepository, TripLogRepository>();
+        services.AddScoped<IGroupRideRepository, GroupRideRepository>();
         return services;
     }
 }

@@ -3,7 +3,7 @@ using MotoNav.Application.DTOs.Users;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Users;
 
-namespace moto_nav.api.Controllers;
+namespace moto_nav_back.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
