@@ -28,6 +28,10 @@ public static class ServiceRegistration
         services.AddScoped<IMaintenanceRepository, MaintenanceRepository>();
         services.AddScoped<IParkingZoneRepository, ParkingZoneRepository>();
         services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+        services.AddScoped<IVoiceCommandRepository, VoiceCommandRepository>();
+        services.AddScoped<IWindHazardZoneRepository, WindHazardZoneRepository>();
+        services.AddScoped<IRoadConditionRepository, RoadConditionRepository>();
+        services.AddScoped<IMechanicReviewRepository, MechanicReviewRepository>();
         return services;
     }
 }
