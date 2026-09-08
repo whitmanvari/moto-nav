@@ -5,6 +5,7 @@ namespace MotoNav.Application.Interfaces.Repositories;
 
 public interface IHazardReportRepository : IGenericRepository<HazardReport>
 {
-    // Verilen koordinatın etrafındaki (örn. 500m çapındaki) aktif engelleri getirir
-    Task<IReadOnlyList<HazardReport>> GetHazardsNearbyAsync(Point center, double radiusMeters);
+    Task<IEnumerable<HazardReport>> GetHazardsNearbyAsync(Point location, double radiusMeters);
+    Task<HazardReport?> GetByIdWithVerificationsAsync(Guid id);
+    Task VerifyHazardAsync(Guid hazardId, Guid userId, bool stillPresent, string? comment);
 }

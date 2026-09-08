@@ -39,6 +39,10 @@ public class MotoNavDbContext(DbContextOptions<MotoNavDbContext> options) : DbCo
     public DbSet<MaintenanceLog> MaintenanceLogs => Set<MaintenanceLog>();
     public DbSet<VoiceCommandLog> VoiceCommandLogs => Set<VoiceCommandLog>();
 
+    // Hazards
+    public DbSet<HazardReport> HazardReports => Set<HazardReport>();
+    public DbSet<HazardVerification> HazardVerifications => Set<HazardVerification>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

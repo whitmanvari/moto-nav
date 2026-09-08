@@ -6,17 +6,54 @@ using NetTopologySuite.Geometries;
 
 namespace MotoNav.Persistence.Repositories;
 
-public class HazardReportRepository(MotoNavDbContext context)
-    : GenericRepository<HazardReport>(context), IHazardReportRepository
+public class HazardReportRepository(MotoNavDbContext context) : GenericRepository<HazardReport>(context), IHazardReportRepository
 {
-    public async Task<IReadOnlyList<HazardReport>> GetHazardsNearbyAsync(Point center, double radiusMeters)
+    public async Task<IEnumerable<HazardReport>> GetHazardsNearbyAsync(Point location, double radiusMeters)
     {
-        // PostGIS 'ST_DWithin' fonksiyonunu çalıştırır.
-        // Verilen 'center' noktasından 'radiusMeters' kadar mesafe içindeki aktif engelleri çeker.
-        return await _dbSet
-            .AsNoTracking()
-            .Where(h => h.IsActive && h.Location != null && h.Location.IsWithinDistance(center, radiusMeters))
-            .Include(h => h.Verifications)
+        return await _context.HazardReports
+            .Where(h => h.IsActive && h.Location != null && h.Location.IsWithinDistance(location, radiusMeters))
             .ToListAsync();
+    }
+
+    public async Task<HazardReport?> GetByIdWithVerificationsAsync(Guid id)
+    {
+        return await _context.HazardReports
+            .Include(h => h.Verifications)
+            .FirstOrDefaultAsync(h => h.Id == id);
+    }
+
+    public async Task VerifyHazardAsync(Guid hazardId, Guid userId, bool stillPresent, string? comment)
+    {
+        var hazard = await _context.HazardReports
+            .Include(h => h.Verifications)
+            .FirstOrDefaultAsync(h => h.Id == hazardId);
+
+        if (hazard == null) return;
+
+        var verification = new HazardVerification
+        {
+            HazardReportId = hazardId,
+            UserId = userId,
+            IsConfirmed = stillPresent
+        };
+
+        hazard.Verifications.Add(verification);
+
+        if (stillPresent)
+        {
+            hazard.UpVotes++;
+        }
+        else
+        {
+            hazard.DownVotes++;
+        }
+        hazard.TotalVotes++;
+
+        if (hazard.DownVotes - hazard.UpVotes >= 3)
+        {
+            hazard.IsActive = false;
+        }
+
+        await _context.SaveChangesAsync();
     }
 }

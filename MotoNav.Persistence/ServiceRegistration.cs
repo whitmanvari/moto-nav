@@ -20,7 +20,8 @@ public static class ServiceRegistration
         // Generic ve özel repository kayıtları
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IHazardReportRepository, HazardReportRepository>();
-
+        services.AddScoped<IBikerSpotRepository, BikerSpotRepository>();
+        services.AddScoped<ISosAlertRepository, SosAlertRepository>();
         return services;
     }
 }
