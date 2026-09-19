@@ -15,6 +15,7 @@ public class MotoNavDbContext(DbContextOptions<MotoNavDbContext> options) : DbCo
     // Users
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<Motorcycle> Motorcycles => Set<Motorcycle>();
+    public DbSet<User> Users => Set<User>();
 
     // Operations   
     public DbSet<SosAlert> SosAlerts => Set<SosAlert>();
@@ -44,6 +45,8 @@ public class MotoNavDbContext(DbContextOptions<MotoNavDbContext> options) : DbCo
     public DbSet<HazardVerification> HazardVerifications => Set<HazardVerification>();
     public DbSet<RoadConditionReport> RoadConditionReports => Set<RoadConditionReport>();
     public DbSet<WindHazardZone> WindHazardZones => Set<WindHazardZone>();
+
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

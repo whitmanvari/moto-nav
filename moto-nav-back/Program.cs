@@ -1,19 +1,37 @@
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using MotoNav.Application.Interfaces.Services;
+using MotoNav.Infrastructure.Services;
 using MotoNav.Persistence;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Controller ve Swagger Servisleri
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
-// 2. Katman Servis Kayıtları (Persistence)
 builder.Services.AddPersistenceServices(builder.Configuration);
-
-// 3. SignalR Servisi
+builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddSignalR();
 
-// 4. CORS Politikası (SignalR WebSocket bağlantıları için)
+// JWT Authentication Servisi
+var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "MotoNav_Super_Secret_Key_For_Jwt_Security_2026_Minimum_32_Chars!";
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["JwtSettings:Audience"],
+            ClockSkew = TimeSpan.Zero
+        };
+    });
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -27,21 +45,23 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// 5. Middleware Pipeline
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("MotoNav API")
+               .WithTheme(ScalarTheme.Moon);
+    });
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowAll");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-// 6. Endpoint ve Hub Yönlendirmeleri
 app.MapControllers();
 app.MapHub<moto_nav_back.Hubs.RideHub>("/hubs/ride");
 
-app.Run(); 
+app.Run();

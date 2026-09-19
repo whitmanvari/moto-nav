@@ -2,8 +2,10 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MotoNav.Application.Interfaces.Repositories;
+using MotoNav.Application.Interfaces.Services;
 using MotoNav.Persistence.Context;
 using MotoNav.Persistence.Repositories;
+using MotoNav.Infrastructure.Services;
 
 namespace MotoNav.Persistence;
 
@@ -32,6 +34,7 @@ public static class ServiceRegistration
         services.AddScoped<IWindHazardZoneRepository, WindHazardZoneRepository>();
         services.AddScoped<IRoadConditionRepository, RoadConditionRepository>();
         services.AddScoped<IMechanicReviewRepository, MechanicReviewRepository>();
+        services.AddScoped<ITokenService, TokenService>();
         return services;
     }
 }
