@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Spots;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Spots;
@@ -6,13 +7,15 @@ using NetTopologySuite.Geometries;
 
 namespace moto_nav_back.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class SpotsController(IBikerSpotRepository spotRepository) : ControllerBase
 {
     private readonly IBikerSpotRepository _spotRepository = spotRepository;
 
-    /// Belirli koordinat çevresindeki motosiklet dostu mekanları PostGIS ile getirir.
+  
+    /// Belirli koordinat çevresindeki motosiklet dostu mekanları PostGIS ile getirir (Varsayılan 10 km).
     [HttpGet("nearby")]
     public async Task<ActionResult<IEnumerable<BikerSpotResponseDto>>> GetNearby(
         [FromQuery] double latitude,
@@ -39,7 +42,7 @@ public class SpotsController(IBikerSpotRepository spotRepository) : ControllerBa
         return Ok(response);
     }
 
-    /// Yeni bir motosiklet dostu mekan ekler.
+    /// Yeni bir motosiklet dostu mekan ekler (Güvenli park yeri, kask dolabı vb.).
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateBikerSpotDto dto)
     {
