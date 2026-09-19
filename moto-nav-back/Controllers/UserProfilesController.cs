@@ -1,15 +1,30 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Users;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Users;
 
 namespace moto_nav.api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class UserProfilesController(IUserProfileRepository profileRepository) : ControllerBase
 {
     private readonly IUserProfileRepository _profileRepository = profileRepository;
+
+    /// Giriş yapan kullanıcının kendi profilini ve garajını getirir.
+    [HttpGet("me")]
+    public async Task<ActionResult<UserProfileResponseDto>> GetMyProfile()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized("Kullanıcı kimliği doğrulanamadı.");
+
+        return await GetByUserId(userId);
+    }
+
 
     /// Kullanıcı ID'sine göre motosikletçi profilini ve garajındaki motorları getirir.
     [HttpGet("{userId:guid}")]
@@ -30,7 +45,7 @@ public class UserProfilesController(IUserProfileRepository profileRepository) : 
             TotalDistanceKm = profile.TotalDistanceKm,
             BloodType = profile.BloodType,
             EmergencyContactPhone = profile.EmergencyContactPhone,
-            Garage = profile.Garage.Select(b => new MotorcycleResponseDto
+            Garage = profile.Garage?.Select(b => new MotorcycleResponseDto
             {
                 Id = b.Id,
                 UserProfileId = b.UserProfileId,
@@ -41,23 +56,29 @@ public class UserProfilesController(IUserProfileRepository profileRepository) : 
                 IsPrimary = b.IsPrimary,
                 PlateNumber = b.PlateNumber,
                 TankCapacityLiters = b.TankCapacityLiters
-            }).ToList()
+            }).ToList() ?? []
         };
 
         return Ok(response);
     }
 
-    /// Yeni bir motosikletçi profili oluşturur.
+
+    /// Giriş yapan kullanıcı için yeni bir motosikletçi profili oluşturur.
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateUserProfileDto dto)
     {
-        var existing = await _profileRepository.GetByUserIdAsync(dto.UserId);
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = !string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId)
+            ? parsedId
+            : dto.UserId;
+
+        var existing = await _profileRepository.GetByUserIdAsync(userId);
         if (existing != null)
-            return Conflict("Bu kullanıcı için zaten bir profil mevcut.");
+            return Conflict(new { message = "Bu kullanıcı için zaten bir profil mevcut.", profileId = existing.Id });
 
         var profile = new UserProfile
         {
-            UserId = dto.UserId,
+            UserId = userId,
             FullName = dto.FullName,
             Bio = dto.Bio,
             AvatarUrl = dto.AvatarUrl,
