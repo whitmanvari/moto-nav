@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Hazards;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Hazards;
 using NetTopologySuite.Geometries;
-using Microsoft.AspNetCore.Authorization;
 
 namespace moto_nav_back.Controllers;
 
@@ -14,7 +15,7 @@ public class HazardsController(IHazardReportRepository hazardRepository) : Contr
 {
     private readonly IHazardReportRepository _hazardRepository = hazardRepository;
 
-
+ 
     /// Belirli bir koordinatın etrafındaki aktif yol engellerini PostGIS ile filtreler.
     [HttpGet("nearby")]
     public async Task<ActionResult<IEnumerable<HazardResponseDto>>> GetNearby(
@@ -42,13 +43,18 @@ public class HazardsController(IHazardReportRepository hazardRepository) : Contr
         return Ok(response);
     }
 
+ 
     /// Yeni bir yol engeli bildirimi oluşturur (Örn: Yağ birikintisi, mıcır, çukur, radar).
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateHazardDto dto)
     {
+        // Kullanıcı kimliğini JWT token üzerinden güvenle alıyoruz
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var reporterUserId = !string.IsNullOrEmpty(userIdClaim) ? Guid.Parse(userIdClaim) : dto.ReporterUserId;
+
         var hazard = new HazardReport
         {
-            ReporterUserId = dto.ReporterUserId,
+            ReporterUserId = reporterUserId,
             Type = dto.Type,
             Description = dto.Description,
             Location = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 },

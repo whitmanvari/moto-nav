@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Sos;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Hazards;
 using NetTopologySuite.Geometries;
-using Microsoft.AspNetCore.Authorization;
 
 namespace moto_nav_back.Controllers;
 
@@ -14,7 +15,8 @@ public class SosAlertsController(ISosAlertRepository sosRepository) : Controller
 {
     private readonly ISosAlertRepository _sosRepository = sosRepository;
 
-    /// Çevredeki aktif ve çözülmemiş SOS çağrılarını PostGIS ile listeler.
+
+    /// Çevredeki aktif ve çözülmemiş SOS çağrılarını PostGIS ile listeler (Varsayılan 25 km yarıçap).
     [HttpGet("nearby")]
     public async Task<ActionResult<IEnumerable<SosAlertResponseDto>>> GetNearby(
         [FromQuery] double latitude,
@@ -39,13 +41,18 @@ public class SosAlertsController(ISosAlertRepository sosRepository) : Controller
         return Ok(response);
     }
 
+
     /// Yeni bir acil durum (SOS) sinyali yayınlar.
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSosAlertDto dto)
     {
+        // Kullanıcı kimliğini JWT token üzerinden güvenle çekiyoruz
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var reporterUserId = !string.IsNullOrEmpty(userIdClaim) ? Guid.Parse(userIdClaim) : dto.UserId;
+
         var alert = new SosAlert
         {
-            UserId = dto.UserId,
+            UserId = reporterUserId,
             Type = dto.Type,
             Note = dto.Note,
             IsResolved = false,
@@ -56,6 +63,7 @@ public class SosAlertsController(ISosAlertRepository sosRepository) : Controller
 
         return CreatedAtAction(nameof(GetNearby), new { latitude = dto.Latitude, longitude = dto.Longitude }, created.Id);
     }
+
 
     /// SOS çağrısını "Yardım ulaştı / Çözüldü" olarak işaretler.
     [HttpPatch("{id:guid}/resolve")]
