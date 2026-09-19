@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Spots;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Spots;
@@ -6,13 +8,15 @@ using NetTopologySuite.Geometries;
 
 namespace moto_nav.api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ParkingZonesController(IParkingZoneRepository parkingRepository) : ControllerBase
 {
     private readonly IParkingZoneRepository _parkingRepository = parkingRepository;
 
-    /// Verilen koordinat çevresindeki güvenli motosiklet park alanlarını PostGIS ile listeler.
+    // Verilen koordinat çevresindeki güvenli motosiklet park alanlarını PostGIS ile listeler
+    [AllowAnonymous]
     [HttpGet("nearby")]
     public async Task<ActionResult<IEnumerable<ParkingZoneResponseDto>>> GetNearby(
         [FromQuery] double latitude,
@@ -42,13 +46,18 @@ public class ParkingZonesController(IParkingZoneRepository parkingRepository) : 
         return Ok(response);
     }
 
-    /// Yeni bir motosiklet park alanı noktası bildirir.
+    // Yeni bir motosiklet park alanı noktası bildirir
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateParkingZoneDto dto)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var reporterUserId = !string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId)
+            ? parsedId
+            : dto.ReporterUserId;
+
         var zone = new ParkingZone
         {
-            ReporterUserId = dto.ReporterUserId,
+            ReporterUserId = reporterUserId,
             Title = dto.Title,
             Location = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 },
             Type = dto.Type,
@@ -64,14 +73,19 @@ public class ParkingZonesController(IParkingZoneRepository parkingRepository) : 
         return CreatedAtAction(nameof(GetNearby), new { latitude = dto.Latitude, longitude = dto.Longitude }, created.Id);
     }
 
-    /// Park alanına topluluk güvenlik incelemesi / puanı ekler.
+    // Park alanına topluluk güvenlik incelemesi / puanı ekler
     [HttpPost("reviews")]
     public async Task<IActionResult> AddReview([FromBody] CreateParkingZoneReviewDto dto)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var reviewerUserId = !string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId)
+            ? parsedId
+            : dto.ReviewerUserId;
+
         var review = new ParkingZoneReview
         {
             ParkingZoneId = dto.ParkingZoneId,
-            ReviewerUserId = dto.ReviewerUserId,
+            ReviewerUserId = reviewerUserId,
             SafetyRating = dto.SafetyRating,
             SawSecurityCamera = dto.SawSecurityCamera,
             AttemptedTheftReported = dto.AttemptedTheftReported,
@@ -79,10 +93,11 @@ public class ParkingZonesController(IParkingZoneRepository parkingRepository) : 
         };
 
         await _parkingRepository.AddReviewAsync(review);
-        return Ok();
+        return Ok("Park alanı değerlendirmesi başarıyla kaydedildi.");
     }
 
-    /// Belirli bir park alanına yapılan tüm yorum ve güvenlik değerlendirmelerini getirir.
+    // Belirli bir park alanına yapılan tüm yorum ve güvenlik değerlendirmelerini getirir
+    [AllowAnonymous]
     [HttpGet("{parkingZoneId:guid}/reviews")]
     public async Task<IActionResult> GetReviews(Guid parkingZoneId)
     {
