@@ -45,74 +45,53 @@ moto-nav/
 
 ```
 
-🧩 Sistem Modülleri (Backend Durumu: %100 Tamamlandı)
-Kimlik & Motosikletçi Profili (Auth, UserProfiles)
+### 🧩 Temel Sistem Modülleri ve İşleyiş Mantığı
 
-JWT tabanlı güvenli oturum yönetimi.
+1. **Topluluk Tabanlı Yol Engelleri (Crowdsourcing Hazards)**
+   * Sürücüler haritaya anlık engel ekleyebilir (çukur, tümsek, bozuk asfalt, yağ birikintisi, radar vb.).
+   * **Doğrulama Sistemi:** Bölgeden geçen diğer sürücüler oy verir; güvenilirlik puanı düşen ihbarlar haritadan otomatik temizlenir.
 
-Kan grubu, acil durum irtibatı, itibar puanı (reputation) ve toplam sürüş mesafesi takibi.
+2. **Canlı Konvoy ve Telemetri Motoru (Real-Time Convoy Tracking)**
+   * Sürücüler SignalR WebSocket tüneli (`RideHub`) üzerinden odaya bağlanır.
+   * Konvoydaki tüm sürücülerin anlık enlem, boylam, hız ve rota pusula açısı milisaniyelik gecikmeyle haritada güncellenir.
 
-Garaj & Periyodik Bakım (Motorcycles, Maintenance)
+3. **Mekansal Yakınlık ve Rota Güvenliği (Spatial Proximity Alerts)**
+   * NetTopologySuite ve PostGIS `ST_DWithin` fonksiyonları ile sürücünün bulunduğu konuma göre 5 km / 15 km yarıçapındaki tehlikeler taranır.
+   * Viyadük ve köprü geçişlerindeki kritik yan rüzgar koridorları (`WindHazards`) harita üzerinde dinamik uyarı üretir.
 
-Garajdaki motorların cc, kategori ve depo hacmi bazlı yönetimi.
+4. **Sürüş Günlüğü ve Garaj (TripLog & Garage)**
+   * Sürüş esnasındaki tüm GPS koordinatları `LineString` geometrisi olarak kaydedilir; irtifa kazanımı, ortalama ve azami hız telemetrisi saklanır.
+   * Kullanıcılar garajlarına motorlarını ekleyebilir, periyodik bakım aralıklarını ve servis geçmişini takip edebilir.
 
-Yağ, filtre, zincir yağlama gibi periyodik görev takip sayaçları ve servis fatura kayıtları.
+5. **Kask İçi Sesli Komut Günlüğü (Voice Commands)**
+   * Sürüş sırasında eldivenle ekrana dokunmadan interkom üzerinden verilen sesli niyetler (`Intent`) ve komut koordinatları sisteme işlenir.
 
-Mekansal Rota & Harita Noktaları (Routes, Spots, MechanicReviews, ParkingZones)
+---
 
-PostGIS spatial yarıçap (nearby) sorguları.
+### 📌 Sürüm 1.0 (MVP) Yol Haritası
 
-Motorcu dostu mekanlar, güvenilir tamirci değerlendirmeleri ve kamera/zemin halkalı güvenli park alanları.
+* **Aşama 1: Altyapı ve Güvenlik**
+  * [x] .NET Clean Architecture çözümünün ve katmanlarının kurulması
+  * [x] PostgreSQL + PostGIS bağlantılarının kurulması (EF Core + NetTopologySuite)
+  * [x] ASP.NET Core Identity ve JWT tabanlı kimlik doğrulama altyapısı
 
-Sürüş Güvenliği & Tehlike Bildirimleri (Hazards, RoadConditions, WindHazards, SosAlerts)
+* **Aşama 2: Coğrafi Veri, Rota ve Güvenlik API'leri**
+  * [x] Mekanlar, servis yorumları ve güvenli motosiklet park alanları modülleri
+  * [x] Tehlike, mıcır ve yol durumu bildirimleri için PostGIS spatial yarıçap sorguları
+  * [x] Viyadük/köprü yan rüzgar tehlike koridoru hesaplamaları
 
-Süre aşımı (ExpiresAt) olan dinamik yol durumu bildirimleri (mıcır, yol çalışması, buzlanma).
+* **Aşama 3: Canlı İletişim ve Sosyal Özellikler**
+  * [x] SignalR `RideHub` üzerinden konvoy canlı konum ve yön yayını
+  * [x] Sürücü profili, garaj yönetimi ve LineString GPS iziyle sürüş kaydı (TripLog)
+  * [x] Kask interkomu sesli komut telemetri günlüğü
+  * [x] 14 API modülünün Scalar üzerinde uçtan uca test edilmesi
 
-Viyadük ve köprüler için yan rüzgar tehlike koridoru uyarıları.
-
-Tek tıkla koordinatlı acil durum (SOS) çağrısı yayını.
-
-Sosyal Akış, Telemetri & Sesli Komutlar (TripLogs, GroupRides, VoiceCommands)
-
-LineString GPS rotası, irtifa kazanımı, ortalama/maksimum hız içeren sürüş günlüğü.
-
-JoinCode ile konvoya katılma ve RideHub üzerinden milisaniyelik canlı konum yayını.
-
-Kask interkomu üzerinden verilen sesli komutların niyet analizi (Intent) günlüğü.
-
-📌 Proje Yol Haritası
-🚀 Backend & Veritabanı Katmanı (Tamamlandı)
-[x] .NET 8/9 Clean Architecture mimarisi ve PostgreSQL + PostGIS bağlantısı
-
-[x] NetTopologySuite ile coğrafi veri modelleri (Point, LineString)
-
-[x] JWT kimlik doğrulama ve Claim bazlı rol/kullanıcı eşleme altyapısı
-
-[x] 14 Controller modülünün CRUD ve mekansal sorgu uçlarının yazılması
-
-[x] Scalar API Reference entegrasyonu ve uçtan uca testlerin tamamlanması
-
-[x] SignalR RideHub canlı telemetri ve konvoy WebSocket altyapısı
-
-📱 Frontend (Mobil & Web) Katmanı (Sıradaki Aşama)
-[ ] Expo / React Native mobil çatısının kurulması ve dark mode (yüksek kontrast) tema entegrasyonu
-
-[ ] JWT oturum saklama ve Axios/SignalR istemci servislerinin bağlanması
-
-[ ] Canlı OpenStreetMap harita ekranı ve GPS sürüş takip arayüzü
-
-[ ] Eldivenle kullanıma uygun "Hızlı Engel Bildir" ve "SOS" sürüş modları
-
-[ ] Konvoy canlı takip ekranı (Grup sürüşü odası)
-
-[ ] React.js web rota keşif ve yönetim paneli
-
-💡 İnovatif Özellikler (Backlog & Gelecek Planı)
-🎙️ İnterkom Ses Entegrasyonu: Mobil istemcide arka planda çalışan Speech-to-Text motoru ile ekrana dokunmadan "Önümde engel var mı?" sorgusu.
-
-🌧️ Islak Sürüş Bakım Tetikleyicisi: Yağmurlu sürüşün ardından otomatik zincir bakım hatırlatıcısı tetikleme.
-
-🚨 Otomatik Kaza Algılama: İvmeölçer ve jiroskop verilerinden sert darbe/düşme tespiti ve acil kişilere SMS iletimi.
+* **Aşama 4: Mobil ve Web İstemci (Aktif Aşama)**
+  * [ ] React Native / Expo mobil navigasyon çatısının oluşturulması
+  * [ ] OpenStreetMap harita ekranı ve canlı GPS takibinin bağlanması
+  * [ ] Eldiven dostu büyük butonlu "Hızlı Bildir" ve "SOS" sürüş modları
+  * [ ] Konvoy canlı harita ekranı (SignalR dinleyicisi)
+  * [ ] Web yönetim ve rota keşif paneli
 
 
 
