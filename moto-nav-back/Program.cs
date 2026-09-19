@@ -20,6 +20,7 @@ builder.Services.AddScoped<IMotorcycleRepository, MotorcycleRepository>();
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddScoped<IRoadConditionRepository, RoadConditionRepository>();
 builder.Services.AddScoped<IMaintenanceRepository, MaintenanceRepository>();
+builder.Services.AddScoped<IVoiceCommandRepository, VoiceCommandRepository>();
 builder.Services.AddScoped<IParkingZoneRepository, ParkingZoneRepository>();
 builder.Services.AddSignalR();
 
