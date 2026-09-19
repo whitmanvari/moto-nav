@@ -1,16 +1,33 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Navigation;
+using MotoNav.Application.DTOs.Routes;
 using MotoNav.Application.Interfaces.Repositories;
+using MotoNav.Application.Interfaces.Services;
 using MotoNav.Domain.Entities.Navigation;
 using NetTopologySuite.Geometries;
 
 namespace moto_nav_back.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class RoutesController(ICustomRouteRepository routeRepository) : ControllerBase
+public class RoutesController(
+    ICustomRouteRepository routeRepository,
+    IRouteService routeService) : ControllerBase
 {
     private readonly ICustomRouteRepository _routeRepository = routeRepository;
+    private readonly IRouteService _routeService = routeService;
+
+
+    /// Verilen iki nokta arasında motosiklet viraj analizi ve rota hesaplaması yapar.
+    [HttpPost("calculate")]
+    public async Task<ActionResult<RouteCalculationResultDto>> CalculateRoute([FromBody] CalculateRouteRequestDto request)
+    {
+        var result = await _routeService.CalculateMotorcycleRouteAsync(request);
+        return Ok(result);
+    }
 
     /// Keşfet akışındaki herkese açık rotaları listeler.
     [HttpGet("public")]
@@ -37,12 +54,17 @@ public class RoutesController(ICustomRouteRepository routeRepository) : Controll
         return Ok(response);
     }
 
+
     /// Yeni bir özel rota çizgisi kaydeder (LineString formatında).
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateCustomRouteDto dto)
     {
         if (dto.Coordinates == null || dto.Coordinates.Count < 2)
             return BadRequest("Bir rota en az 2 koordinat noktası içermelidir.");
+
+        // Kullanıcı Id'sini güvenli şekilde JWT claim'inden al
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var creatorUserId = !string.IsNullOrEmpty(userIdClaim) ? Guid.Parse(userIdClaim) : dto.CreatorUserId;
 
         var coordinates = dto.Coordinates
             .Select(c => new Coordinate(c[0], c[1]))
@@ -53,7 +75,7 @@ public class RoutesController(ICustomRouteRepository routeRepository) : Controll
 
         var route = new CustomRoute
         {
-            CreatorUserId = dto.CreatorUserId,
+            CreatorUserId = creatorUserId,
             Title = dto.Title,
             Description = dto.Description,
             Path = lineString,

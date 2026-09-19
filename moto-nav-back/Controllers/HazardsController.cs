@@ -3,9 +3,11 @@ using MotoNav.Application.DTOs.Hazards;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Hazards;
 using NetTopologySuite.Geometries;
+using Microsoft.AspNetCore.Authorization;
 
 namespace moto_nav_back.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class HazardsController(IHazardReportRepository hazardRepository) : ControllerBase

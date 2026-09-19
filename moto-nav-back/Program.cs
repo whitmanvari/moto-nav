@@ -13,6 +13,7 @@ builder.Services.AddOpenApi();
 
 builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddSignalR();
 
 // JWT Authentication Servisi
@@ -29,6 +30,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             ClockSkew = TimeSpan.Zero
+        };
+
+        // SignalR WebSocket el sıkışmasında access_token parametresini yakalama
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+
+                return Task.CompletedTask;
+            }
         };
     });
 

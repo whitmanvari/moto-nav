@@ -3,9 +3,11 @@ using MotoNav.Application.DTOs.Rides;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Rides;
 using NetTopologySuite.Geometries;
+using Microsoft.AspNetCore.Authorization;
 
 namespace moto_nav_back.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class GroupRidesController(IGroupRideRepository rideRepository) : ControllerBase
