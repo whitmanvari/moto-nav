@@ -1,17 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Operations;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Operations;
 
 namespace moto_nav.api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class MaintenanceController(IMaintenanceRepository maintenanceRepository) : ControllerBase
 {
     private readonly IMaintenanceRepository _maintenanceRepository = maintenanceRepository;
 
-    /// Motosiklete ait geçmiş bakım kayıtlarını listeler.
+    // Motosiklete ait geçmiş bakım kayıtlarını listeler
     [HttpGet("motorcycle/{motorcycleId:guid}/logs")]
     public async Task<ActionResult<IEnumerable<MaintenanceLogResponseDto>>> GetLogs(Guid motorcycleId)
     {
@@ -33,7 +35,7 @@ public class MaintenanceController(IMaintenanceRepository maintenanceRepository)
         return Ok(response);
     }
 
-    /// Yapılan yeni bir bakımı kaydeder.
+    // Motosiklet için yapılan yeni bir bakımı kaydeder
     [HttpPost("logs")]
     public async Task<IActionResult> CreateLog([FromBody] CreateMaintenanceLogDto dto)
     {
@@ -52,7 +54,7 @@ public class MaintenanceController(IMaintenanceRepository maintenanceRepository)
         return CreatedAtAction(nameof(GetLogs), new { motorcycleId = created.MotorcycleId }, created.Id);
     }
 
-    /// Motosikletin periyodik bakım görevlerini (zincir yağlama, yağ değişimi vb.) listeler.
+    // Motosikletin periyodik bakım görevlerini (zincir yağlama, yağ/filtre değişimi vb.) listeler
     [HttpGet("motorcycle/{motorcycleId:guid}/tasks")]
     public async Task<ActionResult<IEnumerable<MaintenanceTaskResponseDto>>> GetTasks(Guid motorcycleId)
     {
@@ -74,7 +76,7 @@ public class MaintenanceController(IMaintenanceRepository maintenanceRepository)
         return Ok(response);
     }
 
-    /// Motosiklet için yeni bir periyodik bakım kuralı tanımlar.
+    // Motosiklet için yeni bir periyodik bakım kuralı tanımlar
     [HttpPost("tasks")]
     public async Task<IActionResult> CreateTask([FromBody] CreateMaintenanceTaskDto dto)
     {
