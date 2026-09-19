@@ -1,9 +1,10 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using MotoNav.Application.DTOs.Rides;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Domain.Entities.Rides;
 using NetTopologySuite.Geometries;
-using Microsoft.AspNetCore.Authorization;
 
 namespace moto_nav_back.Controllers;
 
@@ -14,15 +15,20 @@ public class GroupRidesController(IGroupRideRepository rideRepository) : Control
 {
     private readonly IGroupRideRepository _rideRepository = rideRepository;
 
-    /// Yeni bir grup sürüşü başlatır ve benzersiz bir katılım kodu üretir.
+    // Yeni bir grup sürüşü başlatır ve benzersiz katılım kodu (JoinCode) üretir
     [HttpPost]
     public async Task<ActionResult<GroupRideResponseDto>> Create([FromBody] CreateGroupRideDto dto)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var leaderUserId = !string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId)
+            ? parsedId
+            : dto.LeaderUserId;
+
         var joinCode = "MOTO-" + Random.Shared.Next(1000, 9999);
 
         var ride = new GroupRide
         {
-            LeaderUserId = dto.LeaderUserId,
+            LeaderUserId = leaderUserId,
             Title = dto.Title,
             JoinCode = joinCode,
             ScheduledStartTime = dto.ScheduledStartTime,
@@ -32,7 +38,7 @@ public class GroupRidesController(IGroupRideRepository rideRepository) : Control
         ride.Members.Add(new GroupRideMember
         {
             GroupRideId = ride.Id,
-            UserId = dto.LeaderUserId,
+            UserId = leaderUserId,
             IsOnline = true
         });
 
@@ -51,10 +57,14 @@ public class GroupRidesController(IGroupRideRepository rideRepository) : Control
         });
     }
 
-    /// Katılım kodu (JoinCode) ile mevcut bir grup sürüşüne dahil olur.
+    // Katılım kodu (JoinCode) ile mevcut grup sürüşüne dahil olur
     [HttpPost("join")]
-    public async Task<IActionResult> Join([FromQuery] string joinCode, [FromQuery] Guid userId)
+    public async Task<IActionResult> Join([FromQuery] string joinCode)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            return Unauthorized("Geçersiz kullanıcı oturumu.");
+
         var success = await _rideRepository.JoinRideAsync(joinCode, userId);
         if (!success)
             return NotFound("Geçerli veya aktif bir grup sürüşü bulunamadı.");
@@ -62,14 +72,19 @@ public class GroupRidesController(IGroupRideRepository rideRepository) : Control
         return Ok("Gruba başarıyla katılındı.");
     }
 
-    /// Sürüş esnasında kullanıcının anlık konumunu ve hızını günceller.
+    // Sürüş esnasında sürücünün anlık konumunu ve hızını günceller
     [HttpPost("location")]
     public async Task<IActionResult> UpdateLocation([FromBody] UpdateRideLocationDto dto)
     {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var userId = !string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId)
+            ? parsedId
+            : dto.UserId;
+
         var location = new GroupRideLocation
         {
             GroupRideId = dto.GroupRideId,
-            UserId = dto.UserId,
+            UserId = userId,
             CurrentLocation = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 },
             CurrentSpeedKmh = dto.CurrentSpeedKmh,
             IsLaggingBehind = dto.IsLaggingBehind,
@@ -80,7 +95,7 @@ public class GroupRidesController(IGroupRideRepository rideRepository) : Control
         return Ok();
     }
 
-    /// Gruptaki tüm üyelerin son canlı konumlarını ve hızlarını listeler.
+    // Gruptaki tüm üyelerin son canlı konumlarını ve hızlarını listeler
     [HttpGet("{rideId:guid}/locations")]
     public async Task<IActionResult> GetLiveLocations(Guid rideId)
     {
