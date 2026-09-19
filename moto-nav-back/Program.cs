@@ -18,6 +18,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<IMotorcycleRepository, MotorcycleRepository>();
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
+builder.Services.AddScoped<IRoadConditionRepository, RoadConditionRepository>();
 builder.Services.AddSignalR();
 
 // JWT Authentication Servisi
