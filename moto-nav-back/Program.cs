@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using moto_nav_back.Hubs;
 using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Application.Interfaces.Services;
 using MotoNav.Infrastructure.Services;
@@ -88,6 +89,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<moto_nav_back.Hubs.RideHub>("/hubs/ride");
+app.MapHub<RideHub>("/hubs/ride");
 
 app.Run();
