@@ -1,10 +1,12 @@
-using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using MotoNav.Application.Interfaces.Repositories;
 using MotoNav.Application.Interfaces.Services;
 using MotoNav.Infrastructure.Services;
 using MotoNav.Persistence;
+using MotoNav.Persistence.Repositories;
 using Scalar.AspNetCore;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +16,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
+builder.Services.AddScoped<IMotorcycleRepository, MotorcycleRepository>();
+builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
 builder.Services.AddSignalR();
 
 // JWT Authentication Servisi
