@@ -9,22 +9,50 @@ import {
     startSignalRConnection,
     stopSignalRConnection,
     sendLocationUpdate,
+    joinRideGroup,
+    leaveRideGroup,
+    onReceiveLocationUpdate,
+    onUserLeftGroup,
+    PeerRider,
 } from '../../services/signalr';
 import { hazardService, HazardItem } from '../../services/hazard.service';
 import { HazardModal } from '../../components/ui/HazardModal';
+import { GroupRideModal } from '../../components/ui/GroupRideModal';
 
 export default function DashboardScreen() {
     const router = useRouter();
     const { speed, location, errorMsg } = useSpeedometer();
     const mapRef = useRef<MapView>(null);
 
+    // Tehlike Durumları
     const [hazards, setHazards] = useState<HazardItem[]>([]);
     const [isHazardModalVisible, setIsHazardModalVisible] = useState(false);
     const [hazardsLoaded, setHazardsLoaded] = useState(false);
 
-    // 1. Ekran açıldığında SignalR başlat
+    // Grup Sürüşü Durumları
+    const [currentRideId, setCurrentRideId] = useState<string>('general-ride');
+    const [groupJoinCode, setGroupJoinCode] = useState<string | null>(null);
+    const [isGroupModalVisible, setIsGroupModalVisible] = useState(false);
+    const [peerRiders, setPeerRiders] = useState<Record<string, PeerRider>>({});
+
+    // 1. Ekran açıldığında SignalR başlat ve dinleyicileri bağla
     useEffect(() => {
-        startSignalRConnection();
+        startSignalRConnection(currentRideId);
+
+        onReceiveLocationUpdate((rider) => {
+            setPeerRiders((prev) => ({
+                ...prev,
+                [rider.userId]: rider,
+            }));
+        });
+
+        onUserLeftGroup((userId) => {
+            setPeerRiders((prev) => {
+                const updated = { ...prev };
+                delete updated[userId];
+                return updated;
+            });
+        });
 
         return () => {
             stopSignalRConnection();
@@ -44,7 +72,7 @@ export default function DashboardScreen() {
         setHazards(list);
     };
 
-    // 3. Harita kamerasını takip et ve canlı GPS telemetrisini SignalR ile fırlat
+    // 3. Harita kamerasını takip et ve canlı GPS telemetrisini o anki gruba gönder
     useEffect(() => {
         if (location) {
             if (mapRef.current) {
@@ -60,14 +88,14 @@ export default function DashboardScreen() {
             }
 
             sendLocationUpdate({
-                rideId: 'general-ride',
+                rideId: currentRideId,
                 latitude: location.latitude,
                 longitude: location.longitude,
                 speed: speed,
                 heading: location.heading,
             });
         }
-    }, [location, speed]);
+    }, [location, speed, currentRideId]);
 
     // Yeni Tehlike Bildir
     const handleReportHazard = async (type: string, label: string) => {
@@ -87,12 +115,20 @@ export default function DashboardScreen() {
                 expiryHours: 6,
             });
 
-            // Listeyi anında güncelle
             await loadNearbyHazards(location.latitude, location.longitude);
             Alert.alert('Başarılı', `${label} bildirildi!`);
         } catch {
             Alert.alert('Hata', 'Tehlike bildirimi sunucuya iletilemedi.');
         }
+    };
+
+    // Yeni Gruba Dahil Ol
+    const handleGroupJoined = async (group: { rideId: string; title: string; joinCode: string }) => {
+        await leaveRideGroup(currentRideId);
+        setPeerRiders({});
+        setCurrentRideId(group.rideId);
+        setGroupJoinCode(group.joinCode);
+        await joinRideGroup(group.rideId);
     };
 
     const handleLogout = async () => {
@@ -101,9 +137,11 @@ export default function DashboardScreen() {
         router.replace('/(auth)/login' as any);
     };
 
+    const otherRidersList = Object.values(peerRiders);
+
     return (
         <View style={styles.container}>
-            {/* Canlı Karanlık Harita Katmanı */}
+            {/* Harita */}
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
@@ -118,7 +156,7 @@ export default function DashboardScreen() {
                     longitudeDelta: 0.01,
                 }}
             >
-                {/* Kendi Motosiklet Konumumuz */}
+                {/* Kendi Motor Konumumuz */}
                 {location && (
                     <Marker
                         coordinate={{
@@ -129,14 +167,35 @@ export default function DashboardScreen() {
                         flat
                         rotation={location.heading || 0}
                     >
-                        <View style={styles.markerContainer}>
-                            <View style={styles.markerHalo} />
-                            <View style={styles.markerCore} />
+                        <View style={styles.myMarkerContainer}>
+                            <View style={styles.myMarkerHalo} />
+                            <View style={styles.myMarkerCore} />
                         </View>
                     </Marker>
                 )}
 
-                {/* Haritadaki Yakın Tehlike Pinleri */}
+                {/* Gruptaki Diğer Motorcular */}
+                {otherRidersList.map((rider) => (
+                    <Marker
+                        key={`rider-${rider.userId}`}
+                        coordinate={{
+                            latitude: Number(rider.latitude),
+                            longitude: Number(rider.longitude),
+                        }}
+                        anchor={{ x: 0.5, y: 0.5 }}
+                        flat
+                        rotation={rider.heading || 0}
+                        title={`Sürücü: ${rider.userId?.substring(0, 6) || 'Motorcu'}`}
+                        description={`${Math.round(rider.speed)} km/s`}
+                    >
+                        <View style={styles.peerMarkerContainer}>
+                            <View style={styles.peerMarkerHalo} />
+                            <Text style={styles.peerMarkerIcon}>🏍️</Text>
+                        </View>
+                    </Marker>
+                ))}
+
+                {/* Tehlike Pinleri */}
                 {hazards.map((item, index) => (
                     <Marker
                         key={item.id ? `hazard-${item.id}` : `hazard-${index}-${item.latitude}`}
@@ -154,22 +213,36 @@ export default function DashboardScreen() {
                 ))}
             </MapView>
 
-            {/* Üst Header (Floating Bar) */}
+            {/* Üst Header */}
             <SafeAreaView style={styles.topOverlay}>
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.brandTitle}>MOTO-NAV</Text>
                         <Text style={styles.statusText}>
-                            {errorMsg ? `⚠️ ${errorMsg}` : '● Canlı Navigasyon Aktif'}
+                            {errorMsg
+                                ? `⚠️ ${errorMsg}`
+                                : groupJoinCode
+                                    ? `● Konvoy: ${groupJoinCode}`
+                                    : '● Genel Sürüş Aktif'}
                         </Text>
                     </View>
-                    <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-                        <Text style={styles.logoutText}>Çıkış</Text>
-                    </TouchableOpacity>
+
+                    <View style={styles.topActions}>
+                        <TouchableOpacity
+                            onPress={() => setIsGroupModalVisible(true)}
+                            style={styles.groupBtn}
+                        >
+                            <Text style={styles.groupBtnText}>👥 Konvoy</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+                            <Text style={styles.logoutText}>Çıkış</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </SafeAreaView>
 
-            {/* Sağ Yüzen Hızlı Tehlike Bildir Butonu */}
+            {/* Sağ Yüzen Tehlike Butonu */}
             <TouchableOpacity
                 style={styles.floatingHazardBtn}
                 onPress={() => setIsHazardModalVisible(true)}
@@ -177,7 +250,7 @@ export default function DashboardScreen() {
                 <Text style={styles.floatingHazardIcon}>⚠️</Text>
             </TouchableOpacity>
 
-            {/* Alt Kokpit Paneli (HUD Hız Kartı) */}
+            {/* Alt Kokpit HUD */}
             <View style={styles.bottomHud}>
                 <View style={styles.hudCard}>
                     <View style={styles.speedSection}>
@@ -191,20 +264,31 @@ export default function DashboardScreen() {
                     <View style={styles.divider} />
 
                     <View style={styles.infoSection}>
-                        <Text style={styles.hudLabel}>DURUM</Text>
-                        <Text style={styles.statusValue}>{speed > 0 ? 'Sürüşte' : 'Hazır'}</Text>
+                        <Text style={styles.hudLabel}>GRUP SÜRÜŞÜ</Text>
+                        <Text style={styles.statusValue}>
+                            {otherRidersList.length > 0
+                                ? `${otherRidersList.length + 1} Sürücü Canlı`
+                                : 'Yalnız Sürüş'}
+                        </Text>
                         <Text style={styles.subInfo}>
-                            {hazards.length > 0 ? `${hazards.length} aktif tehlike bildirimi` : 'Tehlike bildirimi yok'}
+                            {groupJoinCode ? `Oda: ${groupJoinCode}` : 'Genel Oda'}
                         </Text>
                     </View>
                 </View>
             </View>
 
-            {/* Tehlike Seçim Penceresi */}
+            {/* Tehlike Modalı */}
             <HazardModal
                 visible={isHazardModalVisible}
                 onClose={() => setIsHazardModalVisible(false)}
                 onSelectHazard={handleReportHazard}
+            />
+
+            {/* Grup Sürüşü Modalı */}
+            <GroupRideModal
+                visible={isGroupModalVisible}
+                onClose={() => setIsGroupModalVisible(false)}
+                onJoined={handleGroupJoined}
             />
         </View>
     );
@@ -246,6 +330,22 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 2,
     },
+    topActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    groupBtn: {
+        backgroundColor: '#7C3AED',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    groupBtnText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
     logoutBtn: {
         backgroundColor: '#1E293B',
         paddingHorizontal: 12,
@@ -257,26 +357,44 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
     },
-    markerContainer: {
+    myMarkerContainer: {
         alignItems: 'center',
         justifyContent: 'center',
         width: 40,
         height: 40,
     },
-    markerHalo: {
+    myMarkerHalo: {
         position: 'absolute',
         width: 32,
         height: 32,
         borderRadius: 16,
         backgroundColor: 'rgba(56, 189, 248, 0.3)',
     },
-    markerCore: {
+    myMarkerCore: {
         width: 16,
         height: 16,
         borderRadius: 8,
         backgroundColor: '#38BDF8',
         borderWidth: 2,
         borderColor: '#FFFFFF',
+    },
+    peerMarkerContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 38,
+        height: 38,
+    },
+    peerMarkerHalo: {
+        position: 'absolute',
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: 'rgba(168, 85, 247, 0.35)',
+        borderWidth: 1.5,
+        borderColor: '#C084FC',
+    },
+    peerMarkerIcon: {
+        fontSize: 18,
     },
     hazardPin: {
         backgroundColor: '#EF4444',

@@ -11,6 +11,15 @@ export interface LocationUpdatePayload {
   heading: number | null;
 }
 
+export interface PeerRider {
+  userId: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  heading: number;
+  timestamp: string;
+}
+
 export const navigationHub = new signalR.HubConnectionBuilder()
   .withUrl(HUB_URL, {
     accessTokenFactory: async () => {
@@ -20,20 +29,20 @@ export const navigationHub = new signalR.HubConnectionBuilder()
     transport: signalR.HttpTransportType.WebSockets,
     skipNegotiation: false,
   })
-  .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // Kopsa bile sessizce tekrar bağlansın
+  .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
   .configureLogging(signalR.LogLevel.Warning)
   .build();
 
-// Mobil Wi-Fi uyku modu veya ping gecikmeleri için zaman aşımını 1 dakikaya çıkar
+// İstemci timeout toleransı
 navigationHub.serverTimeoutInMilliseconds = 120000;
-navigationHub.keepAliveIntervalInMilliseconds = 10000;
+navigationHub.keepAliveIntervalInMilliseconds = 15000;
 
-export const startSignalRConnection = async () => {
+export const startSignalRConnection = async (defaultRideId: string = 'general-ride') => {
   try {
     if (navigationHub.state === signalR.HubConnectionState.Disconnected) {
       await navigationHub.start();
       console.log('⚡ SignalR Hub bağlantısı başarılı.');
-      await joinRideGroup('general-ride');
+      await joinRideGroup(defaultRideId);
     }
   } catch (error) {
     console.error('SignalR bağlantı hatası:', error);
@@ -41,7 +50,7 @@ export const startSignalRConnection = async () => {
 };
 
 export const joinRideGroup = async (rideId: string) => {
-  if (navigationHub.state === signalR.HubConnectionState.Connected) {
+  if (navigationHub.state === signalR.HubConnectionState.Connected && rideId) {
     try {
       await navigationHub.invoke('JoinRideGroup', rideId);
       console.log(`🏍️ ${rideId} sürüş grubuna katılındı.`);
@@ -52,7 +61,7 @@ export const joinRideGroup = async (rideId: string) => {
 };
 
 export const leaveRideGroup = async (rideId: string) => {
-  if (navigationHub.state === signalR.HubConnectionState.Connected) {
+  if (navigationHub.state === signalR.HubConnectionState.Connected && rideId) {
     try {
       await navigationHub.invoke('LeaveRideGroup', rideId);
     } catch (err) {
@@ -78,9 +87,21 @@ export const sendLocationUpdate = async (data: LocationUpdatePayload) => {
   }
 };
 
+export const onReceiveLocationUpdate = (callback: (rider: PeerRider) => void) => {
+  navigationHub.off('ReceiveLocationUpdate');
+  navigationHub.on('ReceiveLocationUpdate', callback);
+};
+
+export const onUserLeftGroup = (callback: (userId: string) => void) => {
+  navigationHub.off('UserLeft');
+  navigationHub.on('UserLeft', callback);
+};
+
 export const stopSignalRConnection = async () => {
   try {
     if (navigationHub.state === signalR.HubConnectionState.Connected) {
+      navigationHub.off('ReceiveLocationUpdate');
+      navigationHub.off('UserLeft');
       await leaveRideGroup('general-ride');
       await navigationHub.stop();
       console.log('SignalR bağlantısı durduruldu.');
