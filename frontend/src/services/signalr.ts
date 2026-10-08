@@ -18,18 +18,21 @@ export const navigationHub = new signalR.HubConnectionBuilder()
       return token || '';
     },
     transport: signalR.HttpTransportType.WebSockets,
+    skipNegotiation: false,
   })
-  .withAutomaticReconnect()
+  .withAutomaticReconnect([0, 2000, 5000, 10000, 30000]) // Kopsa bile sessizce tekrar bağlansın
   .configureLogging(signalR.LogLevel.Warning)
   .build();
+
+// Mobil Wi-Fi uyku modu veya ping gecikmeleri için zaman aşımını 1 dakikaya çıkar
+navigationHub.serverTimeoutInMilliseconds = 60000;
+navigationHub.keepAliveIntervalInMilliseconds = 15000;
 
 export const startSignalRConnection = async () => {
   try {
     if (navigationHub.state === signalR.HubConnectionState.Disconnected) {
       await navigationHub.start();
       console.log('⚡ SignalR Hub bağlantısı başarılı.');
-
-      // Şimdilik varsayılan bir genel sürüş odasına katılalım
       await joinRideGroup('general-ride');
     }
   } catch (error) {
@@ -61,7 +64,6 @@ export const leaveRideGroup = async (rideId: string) => {
 export const sendLocationUpdate = async (data: LocationUpdatePayload) => {
   if (navigationHub.state === signalR.HubConnectionState.Connected) {
     try {
-      // Backend: SendLocationUpdate(string rideId, double latitude, double longitude, double speed, double heading)
       await navigationHub.invoke(
         'SendLocationUpdate',
         data.rideId || 'general-ride',
