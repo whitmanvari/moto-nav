@@ -5,34 +5,61 @@ import { useRouter } from 'expo-router';
 import { storageService } from '../../services/storage';
 import { useSpeedometer } from '../../hooks/useSpeedometer';
 import { darkMapStyle } from '../../constants/darkMapStyle';
+import {
+    startSignalRConnection,
+    stopSignalRConnection,
+    sendLocationUpdate,
+} from '../../services/signalr';
 
 export default function DashboardScreen() {
     const router = useRouter();
     const { speed, location, errorMsg } = useSpeedometer();
     const mapRef = useRef<MapView>(null);
 
+    // 1. Ekran açıldığında SignalR WebSocket bağlantısını başlat, çıkışta kapat
     useEffect(() => {
-        if (location && mapRef.current) {
-            mapRef.current.animateToRegion(
-                {
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                    latitudeDelta: 0.005,
-                    longitudeDelta: 0.005,
-                },
-                500
-            );
+        startSignalRConnection();
+
+        return () => {
+            stopSignalRConnection();
+        };
+    }, []);
+
+    // 2. Harita kamerasını takip et ve canlı GPS telemetrisini backend'e gönder
+    useEffect(() => {
+        if (location) {
+            if (mapRef.current) {
+                mapRef.current.animateToRegion(
+                    {
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                        latitudeDelta: 0.005,
+                        longitudeDelta: 0.005,
+                    },
+                    500
+                );
+            }
+
+            // Canlı hız ve koordinatları RideHub'a aktar
+            sendLocationUpdate({
+                rideId: 'general-ride',
+                latitude: location.latitude,
+                longitude: location.longitude,
+                speed: speed,
+                heading: location.heading,
+            });
         }
-    }, [location]);
+    }, [location, speed]);
 
     const handleLogout = async () => {
+        await stopSignalRConnection();
         await storageService.removeToken();
         router.replace('/(auth)/login' as any);
     };
 
     return (
         <View style={styles.container}>
-            {/* 1. Canlı Karanlık Harita Katmanı */}
+            {/* Canlı Karanlık Harita Katmanı */}
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
@@ -65,13 +92,13 @@ export default function DashboardScreen() {
                 )}
             </MapView>
 
-            {/* 2. Üst Header (Floating Bar) */}
+            {/* Üst Header (Floating Bar) */}
             <SafeAreaView style={styles.topOverlay}>
                 <View style={styles.header}>
                     <View>
                         <Text style={styles.brandTitle}>MOTO-NAV</Text>
                         <Text style={styles.statusText}>
-                            {errorMsg ? `⚠️ ${errorMsg}` : '● Canlı Navigasyon Aktif'}
+                            {errorMsg ? `⚠️ ${errorMsg}` : '● Canlı Navigasyon & Soket Aktif'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
@@ -80,7 +107,7 @@ export default function DashboardScreen() {
                 </View>
             </SafeAreaView>
 
-            {/* 3. Alt Kokpit Paneli (HUD Hız Kartı) */}
+            {/* Alt Kokpit Paneli (HUD Hız Kartı) */}
             <View style={styles.bottomHud}>
                 <View style={styles.hudCard}>
                     <View style={styles.speedSection}>
