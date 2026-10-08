@@ -1,22 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { Redirect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { storageService } from '../services/storage';
 
 export default function EntryScreen() {
-  const [tokenChecked, setTokenChecked] = useState(false);
-  const [hasToken, setHasToken] = useState(false);
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkToken = async () => {
-      const token = await storageService.getToken();
-      setHasToken(!!token);
-      setTokenChecked(true);
-    };
     checkToken();
   }, []);
 
-  if (!tokenChecked) {
+  const checkToken = async () => {
+    const token = await storageService.getToken();
+    setLoading(false);
+    if (token) {
+      router.replace('/(tabs)' as any);
+    } else {
+      router.replace('/(auth)/login' as any);
+    }
+  };
+
+  if (loading) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#38BDF8" />
@@ -24,10 +29,14 @@ export default function EntryScreen() {
     );
   }
 
-  // Token varsa ana uygulamaya, yoksa login'e yönlendirir (kalıcı mimari)
-  return hasToken ? <Redirect href={'/(tabs)' as any} /> : <Redirect href={'/(auth)/login' as any} />;
+  return null;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090D16', justifyContent: 'center', alignItems: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#090D16',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 });

@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useRouter } from 'expo-router';
 import { storageService } from '../../services/storage';
@@ -10,22 +10,34 @@ import {
     stopSignalRConnection,
     sendLocationUpdate,
 } from '../../services/signalr';
+import { hazardService, HazardItem, HazardType } from '../../services/hazard.service';
+import { HazardModal } from '../../components/ui/HazardModal';
 
 export default function DashboardScreen() {
     const router = useRouter();
     const { speed, location, errorMsg } = useSpeedometer();
     const mapRef = useRef<MapView>(null);
 
-    // 1. Ekran açıldığında SignalR WebSocket bağlantısını başlat, çıkışta kapat
+    // Tehlike Durumları
+    const [hazards, setHazards] = useState<HazardItem[]>([]);
+    const [isHazardModalVisible, setIsHazardModalVisible] = useState(false);
+
+    // 1. Ekran açıldığında SignalR başlat ve aktif tehlikeleri çek
     useEffect(() => {
         startSignalRConnection();
+        loadHazards();
 
         return () => {
             stopSignalRConnection();
         };
     }, []);
 
-    // 2. Harita kamerasını takip et ve canlı GPS telemetrisini backend'e gönder
+    const loadHazards = async () => {
+        const list = await hazardService.getActiveHazards();
+        setHazards(list);
+    };
+
+    // 2. Harita kamerasını takip et ve canlı GPS telemetrisini gönder
     useEffect(() => {
         if (location) {
             if (mapRef.current) {
@@ -40,7 +52,6 @@ export default function DashboardScreen() {
                 );
             }
 
-            // Canlı hız ve koordinatları RideHub'a aktar
             sendLocationUpdate({
                 rideId: 'general-ride',
                 latitude: location.latitude,
@@ -50,6 +61,30 @@ export default function DashboardScreen() {
             });
         }
     }, [location, speed]);
+
+    // Yeni Tehlike Bildir
+    const handleReportHazard = async (type: HazardType, label: string) => {
+        if (!location) {
+            Alert.alert('Hata', 'Konum henüz alınamadı.');
+            return;
+        }
+
+        setIsHazardModalVisible(false);
+
+        try {
+            const newHazard = await hazardService.reportHazard({
+                type,
+                title: label,
+                latitude: location.latitude,
+                longitude: location.longitude,
+            });
+
+            setHazards((prev) => [newHazard, ...prev]);
+            Alert.alert('Başarılı', `${label} bildirildi!`);
+        } catch {
+            Alert.alert('Bilgi', 'Tehlike bildirimi gönderilemedi.');
+        }
+    };
 
     const handleLogout = async () => {
         await stopSignalRConnection();
@@ -74,6 +109,7 @@ export default function DashboardScreen() {
                     longitudeDelta: 0.01,
                 }}
             >
+                {/* Kendi Motor Konumumuz */}
                 {location && (
                     <Marker
                         coordinate={{
@@ -90,6 +126,19 @@ export default function DashboardScreen() {
                         </View>
                     </Marker>
                 )}
+
+                {/* Haritadaki Tehlike Pinleri */}
+                {hazards.map((item) => (
+                    <Marker
+                        key={item.id}
+                        coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                        title={item.title}
+                    >
+                        <View style={styles.hazardPin}>
+                            <Text style={styles.hazardPinText}>⚠️</Text>
+                        </View>
+                    </Marker>
+                ))}
             </MapView>
 
             {/* Üst Header (Floating Bar) */}
@@ -98,7 +147,7 @@ export default function DashboardScreen() {
                     <View>
                         <Text style={styles.brandTitle}>MOTO-NAV</Text>
                         <Text style={styles.statusText}>
-                            {errorMsg ? `⚠️ ${errorMsg}` : '● Canlı Navigasyon & Soket Aktif'}
+                            {errorMsg ? `⚠️ ${errorMsg}` : '● Canlı Navigasyon Aktif'}
                         </Text>
                     </View>
                     <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
@@ -106,6 +155,14 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </View>
             </SafeAreaView>
+
+            {/* Sağ Yüzen Hızlı Tehlike Bildir Butonu */}
+            <TouchableOpacity
+                style={styles.floatingHazardBtn}
+                onPress={() => setIsHazardModalVisible(true)}
+            >
+                <Text style={styles.floatingHazardIcon}>⚠️</Text>
+            </TouchableOpacity>
 
             {/* Alt Kokpit Paneli (HUD Hız Kartı) */}
             <View style={styles.bottomHud}>
@@ -123,10 +180,19 @@ export default function DashboardScreen() {
                     <View style={styles.infoSection}>
                         <Text style={styles.hudLabel}>DURUM</Text>
                         <Text style={styles.statusValue}>{speed > 0 ? 'Sürüşte' : 'Hazır'}</Text>
-                        <Text style={styles.subInfo}>Tehlike bildirimi yok</Text>
+                        <Text style={styles.subInfo}>
+                            {hazards.length > 0 ? `${hazards.length} aktif tehlike bildirimi` : 'Tehlike bildirimi yok'}
+                        </Text>
                     </View>
                 </View>
             </View>
+
+            {/* Tehlike Seçim Penceresi */}
+            <HazardModal
+                visible={isHazardModalVisible}
+                onClose={() => setIsHazardModalVisible(false)}
+                onSelectHazard={handleReportHazard}
+            />
         </View>
     );
 }
@@ -198,6 +264,37 @@ const styles = StyleSheet.create({
         backgroundColor: '#38BDF8',
         borderWidth: 2,
         borderColor: '#FFFFFF',
+    },
+    hazardPin: {
+        backgroundColor: '#EF4444',
+        padding: 6,
+        borderRadius: 20,
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    hazardPinText: {
+        fontSize: 14,
+    },
+    floatingHazardBtn: {
+        position: 'absolute',
+        right: 20,
+        bottom: 125,
+        backgroundColor: '#EF4444',
+        width: 54,
+        height: 54,
+        borderRadius: 27,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        shadowColor: '#EF4444',
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 8,
+        zIndex: 10,
+    },
+    floatingHazardIcon: {
+        fontSize: 24,
     },
     bottomHud: {
         position: 'absolute',
