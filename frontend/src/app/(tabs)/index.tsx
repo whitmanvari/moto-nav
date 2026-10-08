@@ -10,7 +10,7 @@ import {
     stopSignalRConnection,
     sendLocationUpdate,
 } from '../../services/signalr';
-import { hazardService, HazardItem, HazardType } from '../../services/hazard.service';
+import { hazardService, HazardItem } from '../../services/hazard.service';
 import { HazardModal } from '../../components/ui/HazardModal';
 
 export default function DashboardScreen() {
@@ -18,26 +18,33 @@ export default function DashboardScreen() {
     const { speed, location, errorMsg } = useSpeedometer();
     const mapRef = useRef<MapView>(null);
 
-    // Tehlike Durumları
     const [hazards, setHazards] = useState<HazardItem[]>([]);
     const [isHazardModalVisible, setIsHazardModalVisible] = useState(false);
+    const [hazardsLoaded, setHazardsLoaded] = useState(false);
 
-    // 1. Ekran açıldığında SignalR başlat ve aktif tehlikeleri çek
+    // 1. Ekran açıldığında SignalR başlat
     useEffect(() => {
         startSignalRConnection();
-        loadHazards();
 
         return () => {
             stopSignalRConnection();
         };
     }, []);
 
-    const loadHazards = async () => {
-        const list = await hazardService.getActiveHazards();
+    // 2. GPS konumu ilk geldiğinde yakındaki tehlikeleri backend'den çek
+    useEffect(() => {
+        if (location && !hazardsLoaded) {
+            loadNearbyHazards(location.latitude, location.longitude);
+            setHazardsLoaded(true);
+        }
+    }, [location, hazardsLoaded]);
+
+    const loadNearbyHazards = async (lat: number, lng: number) => {
+        const list = await hazardService.getNearbyHazards(lat, lng);
         setHazards(list);
     };
 
-    // 2. Harita kamerasını takip et ve canlı GPS telemetrisini gönder
+    // 3. Harita kamerasını takip et ve canlı GPS telemetrisini SignalR ile fırlat
     useEffect(() => {
         if (location) {
             if (mapRef.current) {
@@ -63,26 +70,28 @@ export default function DashboardScreen() {
     }, [location, speed]);
 
     // Yeni Tehlike Bildir
-    const handleReportHazard = async (type: HazardType, label: string) => {
+    const handleReportHazard = async (type: string, label: string) => {
         if (!location) {
-            Alert.alert('Hata', 'Konum henüz alınamadı.');
+            Alert.alert('Hata', 'GPS konumu henüz alınamadı.');
             return;
         }
 
         setIsHazardModalVisible(false);
 
         try {
-            const newHazard = await hazardService.reportHazard({
-                type,
-                title: label,
+            await hazardService.reportHazard({
+                condition: type,
+                description: label,
                 latitude: location.latitude,
                 longitude: location.longitude,
+                expiryHours: 6,
             });
 
-            setHazards((prev) => [newHazard, ...prev]);
+            // Listeyi anında güncelle
+            await loadNearbyHazards(location.latitude, location.longitude);
             Alert.alert('Başarılı', `${label} bildirildi!`);
         } catch {
-            Alert.alert('Bilgi', 'Tehlike bildirimi gönderilemedi.');
+            Alert.alert('Hata', 'Tehlike bildirimi sunucuya iletilemedi.');
         }
     };
 
@@ -109,7 +118,7 @@ export default function DashboardScreen() {
                     longitudeDelta: 0.01,
                 }}
             >
-                {/* Kendi Motor Konumumuz */}
+                {/* Kendi Motosiklet Konumumuz */}
                 {location && (
                     <Marker
                         coordinate={{
@@ -127,12 +136,16 @@ export default function DashboardScreen() {
                     </Marker>
                 )}
 
-                {/* Haritadaki Tehlike Pinleri */}
-                {hazards.map((item) => (
+                {/* Haritadaki Yakın Tehlike Pinleri */}
+                {hazards.map((item, index) => (
                     <Marker
-                        key={item.id}
-                        coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                        title={item.title}
+                        key={item.id ? `hazard-${item.id}` : `hazard-${index}-${item.latitude}`}
+                        coordinate={{
+                            latitude: Number(item.latitude),
+                            longitude: Number(item.longitude),
+                        }}
+                        title={item.condition}
+                        description={item.description}
                     >
                         <View style={styles.hazardPin}>
                             <Text style={styles.hazardPinText}>⚠️</Text>

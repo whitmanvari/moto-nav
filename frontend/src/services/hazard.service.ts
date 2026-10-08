@@ -1,40 +1,50 @@
 import api from './api';
 
-export type HazardType = 'Pothole' | 'SlipperyRoad' | 'Wind' | 'Accident' | 'Police';
-
 export interface HazardItem {
     id: string;
-    type: HazardType;
-    title: string;
-    description?: string;
+    reporterUserId?: string;
+    condition: string;
     latitude: number;
     longitude: number;
-    createdAt: string;
+    description?: string;
+    expiresAt: string;
 }
 
 export interface CreateHazardDto {
-    type: HazardType;
-    title: string;
-    description?: string;
+    condition: string; // "Pothole", "SlipperyRoad", "Wind", "Accident" vb.
     latitude: number;
     longitude: number;
+    description?: string;
+    expiryHours?: number;
 }
 
 export const hazardService = {
-    // Yakındaki veya tüm aktif tehlikeleri çek
-    async getActiveHazards(): Promise<HazardItem[]> {
+    // Koordinat bazlı yakındaki (varsayılan 15km) tehlikeleri çek
+    async getNearbyHazards(latitude: number, longitude: number, radiusMeters: number = 15000): Promise<HazardItem[]> {
         try {
-            const response = await api.get<HazardItem[]>('/roadconditions');
+            const response = await api.get<HazardItem[]>('/roadconditions/nearby', {
+                params: {
+                    latitude,
+                    longitude,
+                    radiusMeters,
+                },
+            });
             return response.data;
         } catch (error) {
-            console.warn('Tehlikeler yüklenemedi (offline fallback kullanılabilir):', error);
+            console.warn('Yakındaki tehlikeler yüklenemedi:', error);
             return [];
         }
     },
 
-    // Tek dokunuşla tehlike bildir
-    async reportHazard(dto: CreateHazardDto): Promise<HazardItem> {
-        const response = await api.post<HazardItem>('/roadconditions', dto);
+    // Yeni yol tehlikesi bildir
+    async reportHazard(dto: CreateHazardDto): Promise<any> {
+        const response = await api.post('/roadconditions', {
+            condition: dto.condition,
+            latitude: dto.latitude,
+            longitude: dto.longitude,
+            description: dto.description || 'Sürücü bildirimi',
+            expiryHours: dto.expiryHours || 6,
+        });
         return response.data;
     },
 };

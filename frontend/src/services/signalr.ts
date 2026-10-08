@@ -25,8 +25,8 @@ export const navigationHub = new signalR.HubConnectionBuilder()
   .build();
 
 // Mobil Wi-Fi uyku modu veya ping gecikmeleri için zaman aşımını 1 dakikaya çıkar
-navigationHub.serverTimeoutInMilliseconds = 60000;
-navigationHub.keepAliveIntervalInMilliseconds = 15000;
+navigationHub.serverTimeoutInMilliseconds = 120000;
+navigationHub.keepAliveIntervalInMilliseconds = 10000;
 
 export const startSignalRConnection = async () => {
   try {

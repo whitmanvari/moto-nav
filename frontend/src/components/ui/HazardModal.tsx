@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
-import { HazardType } from '../../services/hazard.service';
+
+export type HazardType = 'Pothole' | 'SlipperyRoad' | 'Wind' | 'Accident';
 
 interface HazardModalProps {
     visible: boolean;
