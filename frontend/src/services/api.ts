@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { storageService } from './storage';
 
-export const BASE_URL = 'http://172.20.10.3:5000/api';
+export const BASE_URL = 'http://172.20.10.3:5249/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

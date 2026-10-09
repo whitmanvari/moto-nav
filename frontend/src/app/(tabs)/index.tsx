@@ -1,10 +1,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import { storageService } from '../../services/storage';
 import { useSpeedometer } from '../../hooks/useSpeedometer';
-import { darkMapStyle } from '../../constants/darkMapStyle';
 import {
     startSignalRConnection,
     stopSignalRConnection,
@@ -22,7 +21,7 @@ import { GroupRideModal } from '../../components/ui/GroupRideModal';
 export default function DashboardScreen() {
     const router = useRouter();
     const { speed, location, errorMsg } = useSpeedometer();
-    const mapRef = useRef<MapView>(null);
+    const webViewRef = useRef<WebView>(null);
 
     // Tehlike Durumları
     const [hazards, setHazards] = useState<HazardItem[]>([]);
@@ -72,20 +71,19 @@ export default function DashboardScreen() {
         setHazards(list);
     };
 
-    // 3. Harita kamerasını takip et ve canlı GPS telemetrisini o anki gruba gönder
+    // 3. Canlı konumu haritaya gönder ve gruba SignalR ile ilet
     useEffect(() => {
         if (location) {
-            if (mapRef.current) {
-                mapRef.current.animateToRegion(
-                    {
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        latitudeDelta: 0.005,
-                        longitudeDelta: 0.005,
-                    },
-                    500
-                );
-            }
+            const lat = location.latitude;
+            const lng = location.longitude;
+            const heading = location.heading || 0;
+
+            webViewRef.current?.injectJavaScript(`
+                if (window.updateMyLocation) {
+                    window.updateMyLocation(${lat}, ${lng}, ${heading});
+                }
+                true;
+            `);
 
             sendLocationUpdate({
                 rideId: currentRideId,
@@ -96,6 +94,29 @@ export default function DashboardScreen() {
             });
         }
     }, [location, speed, currentRideId]);
+
+    // Tehlikeleri haritaya aktar
+    useEffect(() => {
+        if (hazards.length > 0) {
+            webViewRef.current?.injectJavaScript(`
+                if (window.updateHazards) {
+                    window.updateHazards(${JSON.stringify(hazards)});
+                }
+                true;
+            `);
+        }
+    }, [hazards]);
+
+    // Diğer motorcuları haritaya aktar
+    useEffect(() => {
+        const list = Object.values(peerRiders);
+        webViewRef.current?.injectJavaScript(`
+            if (window.updatePeers) {
+                window.updatePeers(${JSON.stringify(list)});
+            }
+            true;
+        `);
+    }, [peerRiders]);
 
     // Yeni Tehlike Bildir
     const handleReportHazard = async (type: string, label: string) => {
@@ -139,79 +160,88 @@ export default function DashboardScreen() {
 
     const otherRidersList = Object.values(peerRiders);
 
+    const initialLat = location?.latitude || 41.0082;
+    const initialLng = location?.longitude || 28.9784;
+
+    // Yüzde yüz ücretsiz ve API Keysiz OpenStreetMap + Karanlık CSS Filtresi
+    const leafletHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>
+          body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #0b0f19; }
+          .leaflet-control-attribution { display: none !important; }
+          
+          /* OpenStreetMap için Karanlık Gece Modu Filtresi */
+          .leaflet-tile-pane {
+            filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+          }
+
+          .my-marker {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: #38bdf8; border: 3px solid #ffffff;
+            box-shadow: 0 0 15px #38bdf8;
+          }
+          .hazard-icon { font-size: 24px; text-align: center; }
+          .peer-icon { font-size: 22px; }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script>
+          const map = L.map('map', { zoomControl: false }).setView([${initialLat}, ${initialLng}], 16);
+
+          // Kesinlikle API KEY İSTEMEYEN Resmi OpenStreetMap Katmanı
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
+          }).addTo(map);
+
+          // Canlı Konum Noktası
+          const myIcon = L.divIcon({ className: 'my-marker', iconSize: [22, 22], iconAnchor: [11, 11] });
+          let myMarker = L.marker([${initialLat}, ${initialLng}], { icon: myIcon }).addTo(map);
+
+          window.updateMyLocation = function(lat, lng, heading) {
+            myMarker.setLatLng([lat, lng]);
+            map.panTo([lat, lng], { animate: true });
+          };
+
+          // Tehlike Pinleri
+          let hazardLayer = L.layerGroup().addTo(map);
+          window.updateHazards = function(items) {
+            hazardLayer.clearLayers();
+            items.forEach(h => {
+              const icon = L.divIcon({ className: 'hazard-icon', html: '⚠️', iconSize: [24, 24], iconAnchor: [12, 12] });
+              L.marker([h.latitude, h.longitude], { icon: icon }).bindPopup(h.description || h.condition).addTo(hazardLayer);
+            });
+          };
+
+          // Gruptaki Diğer Motorcular
+          let peerLayer = L.layerGroup().addTo(map);
+          window.updatePeers = function(peers) {
+            peerLayer.clearLayers();
+            peers.forEach(p => {
+              const icon = L.divIcon({ className: 'peer-icon', html: '🏍️', iconSize: [24, 24], iconAnchor: [12, 12] });
+              L.marker([p.latitude, p.longitude], { icon: icon }).addTo(peerLayer);
+            });
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
     return (
         <View style={styles.container}>
-            {/* Harita */}
-            <MapView
-                ref={mapRef}
+            {/* Ücretsiz Karanlık Harita */}
+            <WebView
+                ref={webViewRef}
+                originWhitelist={['*']}
+                source={{ html: leafletHTML }}
                 style={StyleSheet.absoluteFill}
-                provider={PROVIDER_DEFAULT}
-                customMapStyle={darkMapStyle}
-                userInterfaceStyle="dark"
-                showsCompass={false}
-                initialRegion={{
-                    latitude: location?.latitude || 41.0082,
-                    longitude: location?.longitude || 28.9784,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                }}
-            >
-                {/* Kendi Motor Konumumuz */}
-                {location && (
-                    <Marker
-                        coordinate={{
-                            latitude: location.latitude,
-                            longitude: location.longitude,
-                        }}
-                        anchor={{ x: 0.5, y: 0.5 }}
-                        flat
-                        rotation={location.heading || 0}
-                    >
-                        <View style={styles.myMarkerContainer}>
-                            <View style={styles.myMarkerHalo} />
-                            <View style={styles.myMarkerCore} />
-                        </View>
-                    </Marker>
-                )}
-
-                {/* Gruptaki Diğer Motorcular */}
-                {otherRidersList.map((rider) => (
-                    <Marker
-                        key={`rider-${rider.userId}`}
-                        coordinate={{
-                            latitude: Number(rider.latitude),
-                            longitude: Number(rider.longitude),
-                        }}
-                        anchor={{ x: 0.5, y: 0.5 }}
-                        flat
-                        rotation={rider.heading || 0}
-                        title={`Sürücü: ${rider.userId?.substring(0, 6) || 'Motorcu'}`}
-                        description={`${Math.round(rider.speed)} km/s`}
-                    >
-                        <View style={styles.peerMarkerContainer}>
-                            <View style={styles.peerMarkerHalo} />
-                            <Text style={styles.peerMarkerIcon}>🏍️</Text>
-                        </View>
-                    </Marker>
-                ))}
-
-                {/* Tehlike Pinleri */}
-                {hazards.map((item, index) => (
-                    <Marker
-                        key={item.id ? `hazard-${item.id}` : `hazard-${index}-${item.latitude}`}
-                        coordinate={{
-                            latitude: Number(item.latitude),
-                            longitude: Number(item.longitude),
-                        }}
-                        title={item.condition}
-                        description={item.description}
-                    >
-                        <View style={styles.hazardPin}>
-                            <Text style={styles.hazardPinText}>⚠️</Text>
-                        </View>
-                    </Marker>
-                ))}
-            </MapView>
+                scrollEnabled={false}
+            />
 
             {/* Üst Header */}
             <SafeAreaView style={styles.topOverlay}>
@@ -356,55 +386,6 @@ const styles = StyleSheet.create({
         color: '#EF4444',
         fontSize: 12,
         fontWeight: '700',
-    },
-    myMarkerContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 40,
-        height: 40,
-    },
-    myMarkerHalo: {
-        position: 'absolute',
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(56, 189, 248, 0.3)',
-    },
-    myMarkerCore: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: '#38BDF8',
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-    },
-    peerMarkerContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 38,
-        height: 38,
-    },
-    peerMarkerHalo: {
-        position: 'absolute',
-        width: 34,
-        height: 34,
-        borderRadius: 17,
-        backgroundColor: 'rgba(168, 85, 247, 0.35)',
-        borderWidth: 1.5,
-        borderColor: '#C084FC',
-    },
-    peerMarkerIcon: {
-        fontSize: 18,
-    },
-    hazardPin: {
-        backgroundColor: '#EF4444',
-        padding: 6,
-        borderRadius: 20,
-        borderWidth: 2,
-        borderColor: '#FFFFFF',
-    },
-    hazardPinText: {
-        fontSize: 14,
     },
     floatingHazardBtn: {
         position: 'absolute',

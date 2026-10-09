@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 import { storageService } from './storage';
 
-const HUB_URL = 'http://172.20.10.3:5000/hubs/ride';
+const HUB_URL = 'http://172.20.10.3:5249/hubs/ride';
 
 export interface LocationUpdatePayload {
   rideId?: string;
@@ -25,9 +25,7 @@ export const navigationHub = new signalR.HubConnectionBuilder()
     accessTokenFactory: async () => {
       const token = await storageService.getToken();
       return token || '';
-    },
-    transport: signalR.HttpTransportType.WebSockets,
-    skipNegotiation: false,
+    }
   })
   .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
   .configureLogging(signalR.LogLevel.Warning)
@@ -36,6 +34,9 @@ export const navigationHub = new signalR.HubConnectionBuilder()
 // İstemci timeout toleransı
 navigationHub.serverTimeoutInMilliseconds = 120000;
 navigationHub.keepAliveIntervalInMilliseconds = 15000;
+navigationHub.on('UserJoined', (data) => {
+  console.log('Kullanıcı odaya katıldı:', data);
+});
 
 export const startSignalRConnection = async (defaultRideId: string = 'general-ride') => {
   try {
