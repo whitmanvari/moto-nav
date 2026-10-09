@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 import { storageService } from './storage';
 
-const HUB_URL = 'http://192.168.1.5:5000/hubs/ride';
+const HUB_URL = 'http://172.20.10.3:5000/hubs/ride';
 
 export interface LocationUpdatePayload {
   rideId?: string;
